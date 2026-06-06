@@ -1,0 +1,71 @@
+\relax 
+\citation{stefani2022}
+\citation{cooley1965}
+\citation{waterman2019}
+\citation{cao2025}
+\citation{hu2021}
+\citation{yuan2022}
+\citation{belhadj2022}
+\citation{sundararajana2016}
+\@writefile{toc}{\contentsline {section}{\numberline {I}Introduction}{1}{}\protected@file@percent }
+\citation{oppenheim}
+\citation{cooley1965,oppenheim}
+\citation{cmlabfft}
+\citation{cmlabfft}
+\citation{oppenheim}
+\citation{picorv32}
+\@writefile{toc}{\contentsline {section}{\numberline {II}Background}{2}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-A}}Fast Fourier Transform and the Butterfly Operation}{2}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Butterfly unit process with 8 input data points to obtain frequency domain output \cite  {cmlabfft}}}{2}{}\protected@file@percent }
+\newlabel{fig:bfly}{{1}{2}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-B}}PicoRV32 Architecture}{2}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-C}}The PCPI Interface}{2}{}\protected@file@percent }
+\newlabel{lst:pcpi}{{1}{2}{}{}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {1}PCPI Signals Interface in PicoRV32}{2}{}\protected@file@percent }
+\citation{riscvprofiler}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-D}}Fixed-Point Arithmetic}{3}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {III}Custom Instruction Design}{3}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-A}}Profiling and Bottleneck Identification}{3}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces Top 10 looping Instruction Pairs in the Compiled Audio Equalizer (RV32I)}}{3}{}\protected@file@percent }
+\newlabel{tab:profiling}{{I}{3}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-B}}Design Constraints}{3}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-C}}Instruction Set Architecture}{3}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Custom Instruction Encoding}}{3}{}\protected@file@percent }
+\newlabel{tab:encoding}{{II}{3}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-D}}Hardware Implementation}{4}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Block diagram of the PicoRV32-based audio equalizer SoC with PCPI FFT custom instruction module.}}{4}{}\protected@file@percent }
+\newlabel{fig:soc}{{2}{4}{}{}{}}
+\newlabel{lst:bfly}{{2}{4}{}{}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {2}Verilog implementation of the \texttt  {bfly} custom instruction.}{4}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-E}}Software Integration}{4}{}\protected@file@percent }
+\newlabel{lst:macros}{{3}{5}{}{}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {3}C macros for invoking the custom FFT instructions}{5}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {IV}Results and Discussion}{5}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-A}}Compiler Synthesis and Instruction Validation}{5}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Assembly output generated from the compiler showing the correct custom instructions \texttt  {bload}, \texttt  {bfly}, and \texttt  {bget} with proper register usage.}}{5}{}\protected@file@percent }
+\newlabel{fig:objdump}{{3}{5}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-B}}Functional Correctness Verification}{5}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Correctness Verification Metrics}}{5}{}\protected@file@percent }
+\newlabel{tab:correctness}{{III}{5}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-C}}Performance Comparison}{5}{}\protected@file@percent }
+\bibcite{stefani2022}{1}
+\bibcite{cooley1965}{2}
+\bibcite{oppenheim}{3}
+\bibcite{waterman2019}{4}
+\bibcite{cao2025}{5}
+\bibcite{hu2021}{6}
+\bibcite{yuan2022}{7}
+\bibcite{belhadj2022}{8}
+\bibcite{picorv32}{9}
+\bibcite{cui2023}{10}
+\bibcite{wang2024}{11}
+\bibcite{garofalo2021}{12}
+\bibcite{mousavikia2022}{13}
+\bibcite{chen2024}{14}
+\bibcite{cmlabfft}{15}
+\bibcite{riscvprofiler}{16}
+\@writefile{lot}{\contentsline {table}{\numberline {IV}{\ignorespaces Resource and performance comparison}}{6}{}\protected@file@percent }
+\newlabel{tab:resource}{{IV}{6}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {V}Conclusion}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{References}{6}{}\protected@file@percent }
+\gdef \@abspage@last{6}
