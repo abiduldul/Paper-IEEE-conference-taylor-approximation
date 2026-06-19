@@ -49,7 +49,7 @@
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 \begin{document}
 
-\title{Design of Custom Instructions on PicoRV32 Processor for Accelerating Fast Fourier Transform Algorithm}
+\title{Twiddle Factor Computation for Butterfly FFT in Audio Equalizer Using Taylor Series Approximation: A Numerical Analysis Approach}
 
 \author{\IEEEauthorblockN{1\textsuperscript{st} Abidul Qohar}
 \IEEEauthorblockA{\textit{Department of Electrical Engineering} \\
@@ -59,657 +59,645 @@
 Yogyakarta, Indonesia \\
 abidulqohar@mail.ugm.ac.id}
 \and
-\IEEEauthorblockN{2\textsuperscript{nd} Agus Bejo}
+\IEEEauthorblockN{2\textsuperscript{nd} Wijaya Yudha Atmaja}
+\IEEEauthorblockA{\textit{Department of Electrical Engineering} \\
+\textit{and Information Technology} \\
+\textit{Faculty of Engineering}\\
+\textit{Universitas Gadjah Mada} \\
+Yogyakarta, Indonesia \\
+wy.atmaja@ugm.ac.id}
+\and
+\IEEEauthorblockN{3\textsuperscript{rd} Agus Bejo}
 \IEEEauthorblockA{\textit{Department of Electrical Engineering} \\
 \textit{and Information Technology} \\
 \textit{Faculty of Engineering}\\
 \textit{Universitas Gadjah Mada} \\
 Yogyakarta, Indonesia \\
 agusbj@ugm.ac.id}
-\and
-\IEEEauthorblockN{3\textsuperscript{rd} Eka Firmansyah}
-\IEEEauthorblockA{\textit{Department of Electrical Engineering} \\
-\textit{and Information Technology} \\
-\textit{Faculty of Engineering}\\
-\textit{Universitas Gadjah Mada} \\
-Yogyakarta, Indonesia \\
-eka.firmansyah@ugm.ac.id}
 }
 
 \maketitle
 
 \begin{abstract}
-Audio equalizer applications rely on the Fast Fourier Transform (FFT) to
-transform time-domain signals into the frequency domain for selective gain
-adjustment. On resource-constrained embedded processors implementing only the
-base RV32I integer instruction set, FFT computation becomes a performance
-bottleneck due to the absence of hardware multiplication support and the
-repetitive nature of the butterfly operation. This paper presents the
-implementation of custom RISC-V instructions to accelerate the butterfly
-computation of a radix-2 FFT integrated into a PicoRV32-based audio equalizer
-system. Four custom instructions---mshift, bload, bfly, and bget are designed to
-collapse the four input, two output butterfly operation into a single
-hardware-accelerated sequence and minimize the multiplication operations through
-the PicoRV32 Custom Peripheral Interface (PCPI). The GNU assembler is modified
-to recognize the new instructions, enabling their use through inline assembly in
-C code without requiring compiler backend changes. A complete System-on-Chip is
-implemented in Verilog comprising the PicoRV32 core, the FFT custom instruction
-module, ROM and dual RAM blocks, and AXI bus interconnect. Experimental results
-from Icarus Verilog simulation show that processing 1024 audio samples through a
-64-point FFT, 3-band equalizer, and inverse FFT requires 5.84 million
-clock cycles with custom instructions enabled, compared to around 17.08 million
-cycles in the software-only baseline a speedup of 2.92×. Functional
-correctness is verified against a NumPy double-precision floating-point
-reference, achieving a signal-to-noise ratio of 56.28 dB. These results
-demonstrate that profile-driven custom instruction design is an effective
-strategy for accelerating signal processing workloads on minimal RISC-V cores.
+The Fast Fourier Transform (FFT) is a fundamental algorithm in digital audio
+equalizer systems, with the butterfly operation accounting for 70--80\% of the
+total execution time on minimal RISC-V processors such as PicoRV32. Each
+butterfly requires the evaluation of a twiddle factor, which involves
+transcendental functions whose values are generally irrational and cannot be
+represented exactly in fixed-bit hardware. Conventional implementations rely on
+pre-computed Lookup Tables (LUTs) that consume substantial memory and scale
+linearly with FFT size, limiting their feasibility on memory-constrained
+embedded systems. This paper proposes the use of \textit{Taylor Series
+approximation} as a numerical method to compute twiddle factors on-the-fly,
+replacing static LUTs with compact polynomial evaluation supported by range
+reduction and Horner's method. The accuracy is guaranteed analytically through
+Taylor's Remainder Theorem, allowing worst-case error bounds to be determined
+before implementation. Python-based experiments using NumPy double-precision as
+a reference show that a 4-term Taylor approximation achieves a Signal-to-Noise
+Ratio (SNR) of 110.78~dB on a 64-point FFT, exceeding the CD audio quality
+standard of 90~dB while reducing twiddle factor memory consumption by 93.75\%
+for FFT-64 and up to 99.90\% for FFT-4096 compared to LUT-based approaches. The
+actual approximation error is consistently lower than the theoretical bound
+predicted by Taylor's Remainder Theorem, validating the mathematical rigor of
+the method. These results demonstrate that Taylor Series approximation provides
+a numerically sound, memory-efficient alternative for twiddle factor computation
+suitable for future implementation on RISC-V hardware.
 \end{abstract}
 
 \begin{IEEEkeywords}
-RISC-V, custom instruction, Fast Fourier Transform, audio equalizer, PicoRV32, hardware acceleration
+Taylor Series, Twiddle Factor, Fast Fourier Transform, Audio Equalizer, RISC-V, Numerical Approximation, Numerical Methods
 \end{IEEEkeywords}
 
+%==============================================================
 \section{Introduction}
-Audio signal processing on embedded systems has become increasingly important
-for applications such as smart speakers, hearing aids, in-vehicle audio systems,
-and wearable devices \cite{stefani2022}. A common operation in these systems is
-the audio equalizer, which selectively amplifies or attenuates specific
-frequency bands of an audio signal. Modern equalizer implementations typically
-transform the signal into the frequency domain using the Fast Fourier Transform
-(FFT), apply per-band gain coefficients, and reconstruct the time-domain output
-via the inverse FFT. The FFT, while asymptotically efficient at $O(N \log N)$,
-imposes significant computational cost on embedded processors. The algorithm
-consists of two principal stages: bit reversal permutation of the input indices,
-and $\log_2(N)$ stages of butterfly operations, each involving complex-number
-multiplication and addition \cite{cooley1965}. When executed on a
-general-purpose processor implementing only the base RV32I instruction set,
-which lacks hardware integer multiplication, each butterfly multiplication must
-be emulated through sequences of shift and add instructions, dramatically
-inflating the cycle count. RISC-V, an open and royalty-free instruction set
-architecture, addresses this limitation through its modular design philosophy.
-The specification reserves opcode space for user-defined custom instructions,
-allowing designers to extend the base ISA with application-specific operations
-without modifying the standard \cite{waterman2019}. This extensibility makes
-RISC-V particularly suitable for domain-specific acceleration of computational
-bottlenecks. Prior work has explored instruction set extensions to accelerate
-FFT and related digital signal processing workloads. One line of research
-integrates dedicated FFT coprocessors with RISC-V cores through specialized
-coupling interfaces, in which a large block of the transform is offloaded to
-custom hardware \cite{cao2025}, \cite{hu2021}. Such designs deliver substantial
-acceleration but rely on heavyweight coprocessor interfaces and incur
-significant area overhead, which is difficult to justify on minimal embedded
-cores. A second line of work targets DSP workloads more broadly, extending the
-RISC-V ISA for audio denoising \cite{yuan2022} and ultra-low-power wireless
-signal processing \cite{belhadj2022}, while custom instructions for FFT on
-non-RISC-V soft cores have also been investigated \cite{sundararajana2016}.
-These approaches, however, are generally evaluated on processors that already
-provide hardware integer multiplication through the standard M extension, so the
-cost of emulating multiplication in software is not part of the problem they
-address.
+%==============================================================
 
-Few studies have considered the combined effect of two constraints that
-characterize minimal RISC-V cores such as PicoRV32: the absence of the M
-extension, which forces every multiplication to be emulated in software, and the
-limited two-source operand bandwidth of a lightweight custom-instruction
-interface, which is insufficient for the four-operand butterfly. The specific
-access pattern of FFT-based audio equalization on such a core, where both of
-these constraints act simultaneously, has not been directly addressed. This
-paper targets that gap. It presents a profile-driven custom instruction design
-that resolves both constraints on an unmodified PicoRV32 core, using only the
-standard PicoRV32 Custom Peripheral Interface (PCPI) and without introducing a
-separate coprocessor or modifying the core pipeline.
+Audio signal processing on embedded systems has become increasingly prevalent in
+applications such as smart speakers, hearing aids, in-vehicle audio systems, and
+wearable devices~\cite{stefani2022}. A common operation in these systems is the
+digital audio equalizer, which transforms an input signal into the frequency
+domain using the Fast Fourier Transform (FFT), applies per-band gain
+coefficients, and reconstructs the time-domain output via the inverse FFT. While
+the FFT is asymptotically efficient at $O(N \log N)$~\cite{cooley1965}, its
+implementation on resource-constrained processors imposes significant
+computational and memory costs that demand careful numerical analysis.
 
-\section{Background}
+A profiling study on RISC-V processors using a PicoRV32-based audio
+equalizer~\cite{qohar2026picorv32} revealed that the butterfly operation alone
+accounts for 70--80\% of the total execution cycles on a minimal RV32I core
+without hardware multiplication support. Each butterfly requires the evaluation
+of a complex-valued
+\textit{twiddle factor}:
+\begin{equation}
+W_N^k = e^{-j 2\pi k/N} = \cos(2\pi k/N) - j \sin(2\pi k/N).
+\label{eq:twiddle}
+\end{equation}
+The values of $\cos$ and $\sin$ for most arguments are irrational and therefore
+cannot be represented exactly within a finite number of bits. For instance,
+$\cos(2\pi \cdot 100 / 1024) = 0.81696989\ldots$, with infinite non-repeating
+decimal digits, must be either truncated or rounded prior to use in hardware.
+
+Conventional approaches to this problem rely on \textit{Lookup Tables (LUTs)},
+which store pre-computed values of $\cos$ and $\sin$ in memory. While LUTs
+provide constant-time access, they incur a memory footprint that grows linearly
+with FFT size. For FFT-4096, an LUT can consume more than 16~KB of SRAM, an
+impractical cost on minimal embedded cores such as PicoRV32, which typically
+provides only a few kilobytes of on-chip memory. Alternative methods such as the
+CORDIC algorithm reduce memory consumption but introduce significant latency due
+to their iterative nature, while software floating-point emulation is
+prohibitively slow for real-time audio processing.
+
+This paper investigates a third alternative: \textit{Taylor Series
+approximation}, a classical numerical method that computes transcendental
+functions through truncated polynomial evaluation. The contributions of this
+paper are threefold:
+\begin{itemize}
+    \item A complete numerical formulation of twiddle factor computation using
+    Maclaurin Series, range reduction, and Horner's method for efficient
+    polynomial evaluation.
+    \item Theoretical validation of the approximation accuracy using Taylor's
+    Remainder Theorem, providing analytically guaranteed error bounds before
+    implementation.
+    \item Empirical validation through Python experiments measuring
+    approximation error, end-to-end FFT Signal-to-Noise Ratio (SNR), and memory
+    savings compared to LUT-based approaches.
+\end{itemize}
+
+%==============================================================
+\section{Background and Related Work}
+\label{sec:background}
+%==============================================================
 
 \subsection{Fast Fourier Transform and the Butterfly Operation}
 
 The Discrete Fourier Transform (DFT) of an $N$-point complex sequence $x[n]$ is
-defined as~\cite{oppenheim} equation 1.
+defined as~\cite{oppenheim2010}:
 \begin{equation}
-X[k] = \sum_{n=0}^{N-1} x[n] \cdot W_N^{nk}, \quad W_N = e^{-j2\pi/N}
+X[k] = \sum_{n=0}^{N-1} x[n] \cdot W_N^{nk}, \quad W_N = e^{-j 2\pi/N}.
+\label{eq:dft}
 \end{equation}
-
 Direct computation requires $O(N^2)$ complex multiplications. The radix-2
-decimation-in-time FFT reduces this to $O(N \log_2 N)$ by recursively
-decomposing the DFT into smaller transforms, exploiting the periodicity and
-symmetry of the twiddle factor $W_N$ \cite{cooley1965,oppenheim}. The algorithm
-comprises two stages. The first stage is bit reversal, reorders the input
-sequence by reversing the binary representation of each index. For $N = 8$, for
-example, index 1 (binary 001) is swapped with index 4 (binary 100), and index 3
-(011) is swapped with index 6 (110).
-
-\begin{figure}[h!]
-\centering
-\includegraphics[width=0.81\columnwidth]{fft butterfly.png}
-\caption{Butterfly unit process with 8 input data points to obtain frequency domain output \cite{cmlabfft}}
-\label{fig:bfly}
-\end{figure}
-
-The second stage shown in Fig.~\ref{fig:bfly} performs $\log_2(N)$ passes of
-butterfly operations. Each butterfly combines two complex inputs $a$ and $b$
-using a twiddle factor $W_N^r$ to produce two outputs, requiring four real
-multiplications and two real additions~\cite{oppenheim} :
-\begin{equation}
-A = a + W_N^r \cdot b
-\end{equation}
-\begin{equation}
-B = a - W_N^r \cdot b
-\end{equation}
-
-Expanding the complex multiplication $W_N^r \cdot b$ where $W_N^r = c - js$ ($c
-= \cos$, $s = \sin$) and $b = b_r + jb_i$:
-\begin{equation}
-\text{tr} = c \cdot b_r + s \cdot b_i
-\end{equation}
-\begin{equation}
-\text{ti} = c \cdot b_i - s \cdot b_r
-\end{equation}
-
+decimation-in-time FFT reduces this complexity to $O(N \log_2 N)$ by recursively
+decomposing the DFT into smaller transforms~\cite{cooley1965,oppenheim2010}. The
+algorithm consists of $\log_2 N$ stages of butterfly operations, where each
+butterfly combines two complex inputs $a$ and $b$ with a twiddle factor $W_N^r$
+to produce two outputs:
+\begin{align}
+A &= a + W_N^r \cdot b, \label{eq:butterflyA}\\
+B &= a - W_N^r \cdot b. \label{eq:butterflyB}
+\end{align}
+Expanding the complex multiplication with $W_N^r = \cos\theta - j\sin\theta$
+and $b = b_r + jb_i$:
+\begin{align}
+t_r &= \cos\theta \cdot b_r + \sin\theta \cdot b_i, \\
+t_i &= \cos\theta \cdot b_i - \sin\theta \cdot b_r.
+\end{align}
 A single butterfly therefore requires four real multiplications and two real
-additions/subtractions. For an $N$-point FFT, the total number of butterfly
-operations is $(N/2) \cdot \log_2(N)$. For $N = 64$, this yields 192
-butterflies, each requiring four multiplications totaling 768 multiplications
-per FFT.
+additions/subtractions. For $N = 64$, this yields 192 butterflies and 768
+multiplications per FFT.
 
-\subsection{PicoRV32 Architecture}
-PicoRV32 is a size-optimized RISC-V soft-core processor that implements the base
-RV32I integer instruction set, with the RV32IM and RV32IMC extensions available
-as optional configuration parameters~\cite{picorv32}. The core uses a sequential,
-non-pipelined execution model in which each instruction completes before the
-next is fetched; this simplicity both reduces area and simplifies the
-integration of custom hardware, since there is no pipeline hazard logic to
-disturb.
+\subsection{Numerical Challenges of Twiddle Factor Computation}
 
-Two architectural properties of the configuration used in this work directly
-shape the design problem addressed by this paper. First, the core is configured
-as a pure RV32I implementation, without the \texttt{M} extension, so it provides
-no hardware integer multiplier. Every multiplication in compiled code is
-therefore expanded by the compiler into a sequence of shift and add
-instructions, an emulation cost that is incurred on every multiply and is
-quantified in Section~III.
+The twiddle factor in Eq.~\eqref{eq:twiddle} involves the transcendental
+functions $\cos$ and $\sin$, whose values are generally irrational for arbitrary
+arguments. Since hardware can only store values with finite bit-width, every
+twiddle factor must be approximated, introducing \textit{representation error}.
+Furthermore, computers cannot evaluate $\cos$ and $\sin$ directly; they must be
+approximated through one of several numerical techniques.
 
-Second, the core does not implement a hardware Floating-Point Unit (FPU) and
-does not provide the RISC-V standard \texttt{F} extension, again to preserve a
-minimal area footprint. As a consequence, any use of IEEE-754 floating-point
-arithmetic would force the compiler to rely on software emulation (soft-float),
-in which each floating-point operation expands into a long sequence of integer
-instructions. For the latency-critical inner loops of a real-time audio
-equalizer, this overhead is prohibitive. The absence of an FPU is therefore the
-architectural reason that this work adopts a fixed-point numerical format,
-described in Section~II-D.
+Table~\ref{tab:conventional} summarizes three conventional approaches and their
+primary limitations.
 
-\subsection{The PCPI Interface}
-
-To allow the instruction set to be extended without modifying the core itself,
-PicoRV32 provides the PicoRV32 Custom Peripheral Interface (PCPI) as in
-Listing~\ref{lst:pcpi}.
-
-% \begin{figure}[h!]
-% \centering
-% \includegraphics[width=0.81\columnwidth]{pcpi_flow.png}
-% \caption{Pico Co-Processor Interface (PCPI) interaction flow}
-% \label{fig:pcpi}
-% \end{figure}
-
-\begin{lstlisting}[style=PictureStyle, caption={PCPI Signals Interface in PicoRV32}, label={lst:pcpi}]
-	// Pico Co-Processor Interface (PCPI)
-	output reg        pcpi_valid,
-	output reg [31:0] pcpi_insn,
-	output     [31:0] pcpi_rs1,
-	output     [31:0] pcpi_rs2,
-	input             pcpi_wr,
-	input      [31:0] pcpi_rd,
-	input             pcpi_wait,
-	input             pcpi_ready,
-\end{lstlisting}
-
-When the core fetches an instruction whose opcode is not part of the implemented
-base ISA, it does not raise an illegal-instruction trap. Instead, it forwards
-the complete 32-bit instruction word together with the two source register
-values (\texttt{rs1} and \texttt{rs2}) onto the PCPI bus. An attached PCPI
-module inspects the instruction, decodes its \texttt{funct3} and \texttt{funct7}
-fields to select the requested operation, performs the computation, and signals
-completion by asserting \texttt{pcpi\_ready}. A result value may optionally be
-returned to the core through the \texttt{pcpi\_rd} signal, which the core writes
-back to the destination register. During this exchange the core enters a stall
-state and waits until \texttt{pcpi\_ready} is asserted, so the custom operation
-may take a single cycle or multiple cycles without any change to the core's
-control logic.
-
-Because this mechanism leaves the PicoRV32 pipeline, register file, and decoder
-untouched, a custom instruction module can be attached purely as an external
-block. It allows the proposed FFT instructions to be added and verified without
-forking or re-validating the core itself.
-
-\subsection{Fixed-Point Arithmetic}
-
-Because the PicoRV32 core used in this work provides no hardware FPU
-(Section~II-B), all FFT computations are carried out in fixed-point arithmetic,
-which maps directly onto the available RV32I integer datapath. In a fixed-point
-representation, a real number is stored in an ordinary integer register, and the
-binary point is fixed at a position agreed upon by convention rather than
-encoded in the data. A $\mathrm{Q}m.f$ format denotes a signed value with $m$
-integer bits and $f$ fractional bits, so the stored integer corresponds to the
-real value scaled by $2^{f}$. Arithmetic on these values then reduces to
-ordinary integer arithmetic on the scaled representation, which is exactly what
-the RV32I instruction set provides. Sample data uses a Q21.10 representation: a
-signed 32-bit integer with 1 sign bit, 21 integer bits, and 10 fractional bits.
-
-% In this work, sample data uses a Q21.10 representation: a signed 32-bit integer
-% with 1 sign bit, 21 integer bits, and 10 fractional bits. This gives a
-% resolution of $2^{-10} \approx 1/1024$ and a representable range of
-% approximately $\pm 2{,}097{,}152$, which is sufficient to hold both the input
-% audio samples and the intermediate values that grow in magnitude through
-% successive FFT stages. Twiddle factors are bounded to $[-1, +1]$ and therefore
-% require no large integer range; they use a more compact Q5.10 representation in
-% 16 bits, which still provides 10 fractional bits of precision for the $\sin$ and
-% $\cos$ values.
-
-\section{Custom Instruction Design}
-
-\subsection{Profiling and Bottleneck Identification}
-
-To establish a baseline for acceleration, the audio equalizer application was
-first executed on a standard RV32I architecture without custom extensions. An
-instruction-level profiling trace \cite{riscvprofiler} was generated to analyze
-the execution behavior of the Fast Fourier Transform (FFT) during the real-time
-audio buffering loop.
-
-Table~\ref{tab:profiling} presents the ten most frequent instruction pairs
-observed in the compiled FFT routine. The profiling reveals that
-shift-and-add patterns dominate the instruction stream, with
-\texttt{srli}--\texttt{slli}, \texttt{andi}--\texttt{beqz}, and
-\texttt{slli}--\texttt{andi} together accounting for over 840{,}000 dynamic
-instructions. These patterns arise from two sources: bit reversal index
-manipulation (the \texttt{andi}--\texttt{beqz} and shift sequences for index bit
-operations) and software emulation of multiplication in the butterfly
-computation (the \texttt{slli}--\texttt{add} chains, which implement
-shift-and-add multiplication in the absence of a hardware multiplier).
-\begin{table}[h!]
-\caption{Top 10 looping Instruction Pairs in the Compiled Audio Equalizer (RV32I)}
-\label{tab:profiling}
+\begin{table}[!t]
+\caption{Conventional Approaches for Twiddle Factor Computation}
+\label{tab:conventional}
 \centering
-\begin{tabular}{@{}clr@{}}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{p{2cm}|p{2.5cm}|p{2.5cm}}
 \toprule
-\textbf{Rank} & \textbf{Instruction Pair} & \textbf{Count} \\
+\textbf{Approach} & \textbf{Mechanism} & \textbf{Main Limitation} \\
 \midrule
-1 & \texttt{srli} $\rightarrow$ \texttt{slli} & 291{,}707 \\
-2 & \texttt{andi} $\rightarrow$ \texttt{beqz} & 289{,}144 \\
-3 & \texttt{slli} $\rightarrow$ \texttt{andi} & 260{,}037 \\
-4 & \texttt{lw} $\rightarrow$ \texttt{slli} & 94{,}403 \\
-5 & \texttt{add} $\rightarrow$ \texttt{lw} & 62{,}111 \\
-6 & \texttt{lw} $\rightarrow$ \texttt{sub} & 29{,}228 \\
-7 & \texttt{addi} $\rightarrow$ \texttt{ble} & 29{,}124 \\
-8 & \texttt{slli} $\rightarrow$ \texttt{mv} & 28{,}641 \\
-9 & \texttt{mv} $\rightarrow$ \texttt{andi} & 28{,}532 \\
-10 & \texttt{sub} $\rightarrow$ \texttt{sw} & 26{,}913 \\
+Lookup Table (LUT) & Pre-computed $\cos$/$\sin$ values stored in memory &
+Memory-intensive; scales linearly with $N$ \\
+\midrule
+CORDIC & Iterative shift-and-add (\textasciitilde20 iterations per value) & High
+latency; many cycles per value \\
+\midrule
+Software Floating-Point & IEEE 754 emulation using integer operations & Too slow
+for real-time audio applications \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-This instruction distribution exposes a severe bottleneck. The fundamental
-mathematical equation for the FFT Butterfly requires four simultaneous inputs
-(real data, imaginary data, and two trigonometric twiddle factors). Because the
-standard Pico Co-Processor Interface (PCPI) restricts data transfer to a maximum
-of two source registers (rs1 and rs2) per clock cycle, the standard GCC compiler
-is forced into an aggressive register-spilling routine. The CPU exhausts the
-majority of its clock cycles orchestrating data movement calculating array
-pointers, loading operands, and storing intermediate cross-multiplications back
-to the main memory leaving the Arithmetic Logic Unit (ALU) heavily
-underutilized.
+\subsection{Related Work}
 
-\subsection{Design Constraints}
+Prior work on FFT acceleration has explored various strategies. Dedicated FFT
+coprocessors coupled to RISC-V cores~\cite{cao2025,hu2021} offload large
+transform blocks to custom hardware, but introduce heavyweight interfaces and
+significant area overhead. Custom RISC-V instruction extensions for DSP
+workloads have been investigated for audio denoising~\cite{yuan2022} and
+ultra-low-power signal processing~\cite{belhadj2022}, although typically on
+cores that already include hardware integer multiplication.
 
-The RISC-V R-type instruction format encodes two source registers (\texttt{rs1},
-\texttt{rs2}) and one destination register (\texttt{rd}) within a 32-bit
-instruction word. However, a single butterfly operation requires four
-input operands---the complex input pair ($b_r$, $b_i$) and the twiddle factor
-pair ($c$, $s$) and produces two output operands ($tr$, $ti$). This
-exceeds the operand capacity of a single R-type instruction.
+%==============================================================
+\section{Proposed Method: Taylor Series Approximation}
+\label{sec:method}
+%==============================================================
 
-\subsection{Instruction Set Architecture}
+\subsection{Main Idea}
 
-To accelerate the computational bottlenecks identified during profiling, the
-baseline RISC-V Instruction Set Architecture (ISA) is extended with four custom
-instructions. Rather than relying on a single opcode, the extensions
-strategically utilize two reserved spaces within the RISC-V custom opcode map:
-\texttt{0x0B} (\texttt{custom-0}) and \texttt{0x2B} (\texttt{custom-1}). The
-instructions are uniquely decoded using a combination of their \texttt{funct3}
-and \texttt{funct7} fields, as detailed in Table~\ref{tab:encoding}.
+We propose replacing conventional approaches for twiddle factor computation with
+on-the-fly polynomial computation of $\cos$ and $\sin$ using Maclaurin Series
+(Taylor Series centered at $a = 0$). This approach eliminates the memory cost of
+conventional methods while maintaining numerical accuracy through three
+carefully designed mechanisms: \textit{range reduction}, \textit{truncated
+Taylor Series}, and \textit{Horner's method}.
 
-\begin{table}[h!]
-\caption{Custom Instruction Encoding}
-\label{tab:encoding}
+\subsection{Maclaurin Series for Cosine and Sine}
+
+The Maclaurin Series expansions for $\cos$ and $\sin$ are:
+\begin{align}
+\cos(x) &= 1 - \frac{x^2}{2!} + \frac{x^4}{4!} - \frac{x^6}{6!} + \frac{x^8}{8!} - \cdots, \label{eq:cos_series}\\
+\sin(x) &= x - \frac{x^3}{3!} + \frac{x^5}{5!} - \frac{x^7}{7!} + \frac{x^9}{9!} - \cdots. \label{eq:sin_series}
+\end{align}
+These series converge for all real $x$, with convergence rate determined by the
+magnitude of $x$ relative to the factorial denominator.
+
+\subsection{Range Reduction}
+
+The convergence of Eqs.~\eqref{eq:cos_series} and~\eqref{eq:sin_series}
+accelerates as $|x|$ decreases. For twiddle factors with arguments spanning $[0,
+2\pi]$, direct application would require many series terms to achieve acceptable
+accuracy. We exploit the symmetry properties of trigonometric functions to
+reduce any input angle $\theta \in [0, 2\pi]$ into the interval $[0, \pi/4]$,
+denoted $\theta'$.
+
+Table~\ref{tab:rangereduction} summarizes the eight-region mapping based on the
+original quadrant of $\theta$. After reduction, $|\theta'| \leq \pi/4 \approx
+0.785$, dramatically improving series convergence.
+
+\begin{table}[!h]
+\caption{Range Reduction Mapping to $[0, \pi/4]$}
+\label{tab:rangereduction}
 \centering
-\footnotesize
-\begin{tabular}{@{}lcccccc@{}}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{c|c}
 \toprule
-\textbf{Instruction} & \textbf{funct7} & \textbf{rs2} & \textbf{rs1} & \textbf{funct3} & \textbf{rd} & \textbf{opcode} \\
+\textbf{Original Range} & \textbf{Reduced Computation} \\
 \midrule
-\texttt{mshift }    & 0x00 & in a & in b & 0x0 & out c & 0x0B \\
-\texttt{bload }     & 0x00 & imag & real & 0x0 & x & 0x2B \\
-\texttt{bfly }      & 0x01 & s    & c    & 0x1 & tr & 0x2B \\
-\texttt{bget }      & 0x02 & x   & x   & 0x2 & ti & 0x2B \\
+$[0, \pi/4]$ & $\cos(\theta) = \cos(\theta')$ \\
+$[\pi/4, \pi/2]$ & $\cos(\theta) = \sin(\pi/2 - \theta')$ \\
+$[\pi/2, 3\pi/4]$ & $\cos(\theta) = -\sin(\theta' - \pi/2)$ \\
+$[3\pi/4, \pi]$ & $\cos(\theta) = -\cos(\pi - \theta')$ \\
+$[\pi, 5\pi/4]$ & $\cos(\theta) = -\cos(\theta' - \pi)$ \\
+$[5\pi/4, 3\pi/2]$ & $\cos(\theta) = -\sin(3\pi/2 - \theta')$ \\
+$[3\pi/2, 7\pi/4]$ & $\cos(\theta) = \sin(\theta' - 3\pi/2)$ \\
+$[7\pi/4, 2\pi]$ & $\cos(\theta) = \cos(2\pi - \theta')$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The semantics of each instruction are:
-\begin{itemize}
-    \item \texttt{mshift rd, rs1, rs2}: Reads the input $a$ from \texttt{rs1} and
-    $b$ from \texttt{rs2} then computes both for multiplication 32-bit in 1 cycle and
-    writes the output c 32-bit into register destination (\texttt{rd}).
-    \item \texttt{bload rs1, rs2}: Stores the values of \texttt{rs1} ($b_r$,
-    real component of input) and \texttt{rs2} ($b_i$, imaginary component) into
-    internal hardware registers within the PCPI module. No result is written to
-    the register file.
-    \item \texttt{bfly rd, rs1, rs2}: Reads twiddle factor $c$ from \texttt{rs1}
-    and $s$ from \texttt{rs2}, computes both $tr = (c \cdot b_r + s \cdot b_i)
-    \gg 10$ and $ti = (c \cdot b_i - s \cdot b_r) \gg 10$ using the previously
-    loaded inputs, latches $ti$ internally, and writes $tr$ to \texttt{rd}.
-    \item \texttt{bget rd}: Returns the latched $ti$ value to \texttt{rd}.
-\end{itemize}
+\subsection{Truncated Taylor Series}
 
-\subsection{Hardware Implementation}
-The PCPI FFT module is instantiated alongside the PicoRV32 core and connected
-via the standard PCPI bus signals. Fig.~\ref{fig:soc} shows the block diagram of
-the integrated system.
+After range reduction, $\cos(\theta')$ is approximated using $n$ terms of the
+Maclaurin Series:
+\begin{equation}
+\cos(\theta') \approx 1 - \frac{\theta'^2}{2!} + \frac{\theta'^4}{4!} - \frac{\theta'^6}{6!} + \cdots + (-1)^{n-1} \frac{\theta'^{2(n-1)}}{(2(n-1))!}.
+\label{eq:cos_truncated}
+\end{equation}
+The contribution of each term diminishes rapidly because the factorial $n!$
+grows faster than the power $\theta'^n$. Table~\ref{tab:term_contribution}
+illustrates the magnitude of each term evaluated at the worst-case argument
+$\theta' = \pi/4$.
 
-Upon receiving a PCPI request, the FFT module decodes the instruction's
-\texttt{funct3} and \texttt{funct7} fields. For \texttt{bload}, the module
-captures \texttt{rs1} and \texttt{rs2} into internal \texttt{b\_real} and
-\texttt{b\_imag} registers and asserts \texttt{pcpi\_ready} in the next cycle.
-For \texttt{bfly}, the module performs four 16$\times$32-bit multiplications and
-the required addition/subtraction in combinational logic, applying the Q21.10
-normalization shift, latches the $ti$ result, and returns $tr$ via
-\texttt{pcpi\_rd} while asserting \texttt{pcpi\_ready}. For \texttt{bget}, the
-module immediately returns the latched $ti$ value.
-
-\begin{figure}[!ht]
+\begin{table}[!h]
+\caption{Magnitude of Each Term at $\theta' = \pi/4$}
+\label{tab:term_contribution}
 \centering
-\includegraphics[width=0.9\columnwidth]{Hardware architecture rtl.png}
-\caption{Block diagram of the PicoRV32-based audio equalizer SoC with PCPI FFT custom instruction module.}
-\label{fig:soc}
-\end{figure}
-The complete SoC is implemented in Verilog and simulated using Icarus Verilog.
-The system architecture comprises:
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{c|c|c|c}
+\toprule
+\textbf{Term} & \textbf{Form} & \textbf{Value} & \textbf{Contribution} \\
+\midrule
+1 & $1$ & $1.00000$ & Dominant \\
+2 & $-\theta'^2/2!$ & $-0.30843$ & Large \\
+3 & $+\theta'^4/4!$ & $+0.01585$ & Small \\
+4 & $-\theta'^6/6!$ & $-2.61 \times 10^{-4}$ & Very small \\
+5 & $+\theta'^8/8!$ & $+3.6 \times 10^{-6}$ & Negligible \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+After the fourth term, the residual contribution falls below the quantization
+error of 16-bit fixed-point arithmetic ($\approx 3 \times 10^{-5}$), indicating
+that four terms are sufficient for audio-grade accuracy.
+
+\subsection{Horner's Method for Efficient Evaluation}
+
+Naive evaluation of Eq.~\eqref{eq:cos_truncated} requires repeated computation
+of $\theta'^{2k}$, leading to redundant multiplications. Horner's method
+reformulates the polynomial to minimize the total number of multiplications.
+With $u = \theta'^2$, the four-term approximation becomes:
+\begin{equation}
+\cos(\theta') \approx 1 + u \cdot \left(-\frac{1}{2} + u \cdot \left(\frac{1}{24} + u \cdot \left(-\frac{1}{720}\right)\right)\right).
+\label{eq:horner}
+\end{equation}
+This formulation requires only 4 multiplications and 3 additions, compared to 6
+multiplications for naive evaluation---a 33\% reduction in multiplication count.
+
+\subsection{Error Bound from Taylor's Remainder Theorem}
+
+A central advantage of Taylor Series approximation is the existence of a
+rigorous analytical error bound. Taylor's Remainder Theorem states that for a
+function $f$ approximated by its $n$-th order Taylor polynomial $P_n$, the
+remainder $R_n$ satisfies:
+\begin{equation}
+R_n(x) = \frac{f^{(n+1)}(\xi)}{(n+1)!} \cdot x^{n+1}, \quad \xi \in [0, x].
+\label{eq:taylor_remainder}
+\end{equation}
+For $f(x) = \cos(x)$, the derivatives satisfy $|f^{(n+1)}(\xi)| \leq 1$. After
+range reduction with $|\theta'| \leq \pi/4$, the absolute error of the $n$-term
+approximation is bounded by:
+\begin{equation}
+|R_n| \leq \frac{(\pi/4)^{2n}}{(2n)!}.
+\label{eq:error_bound}
+\end{equation}
+For the four-term approximation:
+\begin{equation}
+|R_4| \leq \frac{(\pi/4)^8}{8!} \approx 3.6 \times 10^{-6},
+\end{equation}
+which corresponds to approximately 18-bit accuracy. This is more than sufficient
+for 16-bit CD audio quality, validating the choice of four terms as the optimal
+trade-off between accuracy and computational cost.
+
+%==============================================================
+\section{Experimental Setup}
+\label{sec:experiment}
+%==============================================================
+
+\subsection{Implementation Environment}
+
+The proposed method was implemented and validated in Python~3 using the NumPy
+library for numerical operations. The double-precision floating-point
+implementations of $\cos$ and $\sin$ from Python's \texttt{math} library
+(\textasciitilde15--17 significant digits) served as the gold-standard reference
+for measuring approximation error.
+
+\subsection{Test Signal and FFT Configuration}
+
+A composite sinusoidal test signal was synthesized to simulate multi-tone audio
+content:
+\begin{equation}
+x(t) = \sin(2\pi \cdot 50 t) + 0.5 \sin(2\pi \cdot 120 t) + 0.3 \sin(2\pi \cdot 200 t).
+\label{eq:test_signal}
+\end{equation}
+The signal was sampled at $N = 64$ points, consistent with the FFT configuration
+of the PicoRV32 audio equalizer described in~\cite{qohar2026picorv32}.
+
+\subsection{Experimental Variables}
+
+Two primary variables were swept to explore the design space:
 \begin{itemize}
-    \item PicoRV32 core: 32-bit RV32I implementation with PCPI enabled.
-    \item PCPI FFT module: implements \texttt{bload}, \texttt{bfly}, \texttt{bget} as described in Section IV.
-    \item ROM: 32 KB instruction memory loaded with the compiled audio equalizer program.
-    \item Input RAM: stores the 1024-sample test audio waveform.
-    \item Output RAM: 4 KB block for capturing the processed audio output stream (accessed via \texttt{MAGIC\_ADDR 0x00020000}).
-    \item AXI bus: provides addressable interconnection between the core, memories, and GPIO peripherals.
+    \item Number of Taylor terms: 2, 3, 4, and 5 terms, to evaluate the
+    trade-off between accuracy and computation latency.
+    \item FFT size: 64, 256, 1024, and 4096 points, to assess the
+    memory scalability of Taylor versus LUT.
 \end{itemize}
 
-% =============================================================
-% SECTION 3.4 (Hardware Implementation) — bfly Verilog excerpt Extracted from
-% picorv32_pcpi_fft.v. Requires \usepackage{listings} and the
-% \lstdefinestyle{verilog}{...} block in the preamble.
-% =============================================================
+\subsection{Performance Metrics}
 
-% --- Introducing paragraph (place before the listing) ---
+The following metrics were measured:
+\begin{itemize}
+    \item Maximum approximation error of $\cos$ at $\theta' = \pi/4$,
+    compared against theoretical bound from Eq.~\eqref{eq:error_bound}.
+    \item Signal-to-Noise Ratio (SNR) of the end-to-end FFT output,
+    computed as:
+    \begin{equation}
+    \text{SNR (dB)} = 10 \log_{10} \left( \frac{\sum_k |X_{\text{ref}}[k]|^2}{\sum_k |X_{\text{ref}}[k] - X_{\text{approx}}[k]|^2} \right).
+    \label{eq:snr}
+    \end{equation}
+    \item Memory consumption for twiddle factor storage, comparing LUT
+    and Taylor approaches across various FFT sizes.
+\end{itemize}
 
-Among the four custom instructions, \texttt{bfly} carries the arithmetic core of
-the butterfly and is therefore the most representative of the hardware design.
-The PCPI module decodes it when the instruction word carries opcode
-\texttt{0x2B} and \texttt{funct3}~=~\texttt{1}, interpreting \texttt{rs1} as the
-cosine twiddle term $c$ and \texttt{rs2} as the sine term $s$. These are
-combined with the real and imaginary operands \texttt{s\_real\_64} and
-\texttt{s\_imag\_64} that were captured by a preceding \texttt{bload}.
-Listing~\ref{lst:bfly} shows the relevant portion of the Verilog implementation.
-
-\begin{lstlisting}[style=PictureStyle,caption={Verilog implementation of the \texttt{bfly} custom instruction.},label={lst:bfly}]
-wire signed [63:0] r_c = s_real_64 * c_64; 
-wire signed [63:0] i_s = s_imag_64 * s_64; 
-wire signed [63:0] r_s = s_real_64 * s_64; 
-wire signed [63:0] i_c = s_imag_64 * c_64; 
-
-wire signed [63:0] ti_64 = r_s + i_c;
-
-wire signed [31:0] tr_result = tr_64[FIXED_SHIFT +: 32]; 
-wire signed [31:0] ti_result = ti_64[FIXED_SHIFT +: 32];
-
-else if (is_bfly) begin 
-cached_ti  <= ti_result; 
-pcpi_rd    <= tr_result; 
-pcpi_wr    <= 1'b1; 
-pcpi_ready <= 1'b1; 
-end
-\end{lstlisting}
-
-A single \texttt{bfly} instruction serves both the forward and inverse transform
-stages of the equalizer pipeline, with no dedicated inverse-FFT hardware. This
-reuse follows directly from the relationship between the forward and inverse DFT
-kernels. The forward transform applies the twiddle factor $W_{N}^{r} = e^{-j2\pi
-r/N} = c - js$, whereas the inverse transform applies its complex conjugate
-$W_{N}^{-r} = e^{+j2\pi r/N} = c + js$, where $c = \cos(2\pi r/N)$ and $s =
-\sin(2\pi r/N)$. The cosine term $c$ is identical for both directions; only the
-sign of the sine term $s$ differs.
-
-
-The PCPI output signals \texttt{pcpi\_rd}, \texttt{pcpi\_wr}, and
-\texttt{pcpi\_ready} are registered rather than driven combinationally. A
-combinational \texttt{pcpi\_ready} can glitch when the decode signals settle
-within a cycle, and because the PicoRV32 core samples \texttt{pcpi\_ready} at
-the clock edge such a glitch could cause the instruction to be acknowledged
-incorrectly. Registering the outputs guarantees a clean, stable handshake at
-every clock edge, at the cost of one additional cycle of latency: an instruction
-presented on \texttt{pcpi\_valid} in cycle $N$ produces its result and asserts
-\texttt{pcpi\_ready} in cycle $N{+}1$.
-
-\subsection{Software Integration}
-
-To seamlessly bridge the high-level audio equalizer application with the
-underlying custom DSP hardware, the proposed instructions are exposed to the C
-programming environment via inline assembly macros. This methodology provides
-explicit, cycle-accurate control over the coprocessor invocation without
-requiring extensive modifications to the GCC compiler's backend instruction
-scheduler.
-\begin{lstlisting}[style=PictureStyle, caption={C macros for invoking the custom FFT instructions}, label={lst:macros}]
-#define hw_bload(real_val, imag_val) \
-  __asm__ volatile ("bload %0, %1" :: \
-    "r"((int32_t)(real_val)), \
-    "r"((int32_t)(imag_val)) : "memory")
-
-#define hw_bfly(tr_out, c_val, s_val) \
-  __asm__ volatile ("bfly %0, %1, %2" \
-    : "=r"(tr_out) \
-    : "r"((int32_t)(c_val)), \
-      "r"((int32_t)(s_val)) : "memory")
-
-#define hw_bget(ti_out) \
-  __asm__ volatile ("bget %0" \
-    : "=r"(ti_out) :: "memory")
-\end{lstlisting}
-
-To enable the assembler to recognize the new mnemonics, the
-\texttt{opcodes/riscv-opc.c} source file in GNU binutils was modified to add
-entries for \texttt{bload}, \texttt{bfly}, and \texttt{bget} with their
-corresponding encoding fields. The modified binutils is rebuilt and used in
-place of the standard toolchain when compiling FFT code.
-
+%==============================================================
 \section{Results and Discussion}
+\label{sec:results}
+%==============================================================
 
-\subsection{Compiler Synthesis and Instruction Validation}
+\subsection{Experiment 1: Validation of Taylor's Remainder Theorem}
 
-To verify the successful integration of the custom toolchain and the high-level
-C macros, the compiled binary was disassembled and analyzed using the RISC-V GNU
-objdump utility. The primary objective of this verification was to ensure that
-the GCC compiler respected the sequential integrity of the custom DSP operations
-without injecting redundant memory spills or reordering the instructions.
+Table~\ref{tab:exp1} compares the actual approximation error at $\theta' =
+\pi/4$ against the theoretical bound from Eq.~\eqref{eq:error_bound} for
+varying numbers of Taylor terms.
 
-As shown in Fig.~\ref{fig:objdump}, the disassembled object code confirms the
-flawless translation of the C macros into the reserved \texttt{0x2B} custom
-opcode space. Crucially, the compiler successfully fetches the array values into
-registers \texttt{(a4, a5)} and immediately feeds them into the \texttt{bload}
-instruction. Protected by the inline assembly memory barriers, the subsequent
-\texttt{bfly} and \texttt{bget} instructions are emitted in perfect consecutive order.
-
-\begin{figure}[!ht]
+\begin{table}[H]
+\caption{Cosine Approximation Error at $\theta' = \pi/4$}
+\label{tab:exp1}
 \centering
-\includegraphics[width=0.9\columnwidth]{custom instructions.png}
-\caption{Assembly output generated from the compiler showing the correct custom instructions \texttt{bload}, \texttt{bfly}, and \texttt{bget} with proper register usage.}
-\label{fig:objdump}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{c|c|c|c}
+\toprule
+\textbf{Terms} & \textbf{Actual Error} & \textbf{Theoretical Bound} &
+\textbf{Bit Accuracy} \\
+\midrule
+2 & $1.55 \times 10^{-2}$ & $1.59 \times 10^{-2}$ & \textasciitilde6 bits \\
+3 & $3.22 \times 10^{-4}$ & $3.26 \times 10^{-4}$ & \textasciitilde11 bits \\
+4 & $\mathbf{3.57 \times 10^{-6}}$ & $3.59 \times 10^{-6}$ &
+\textbf{\textasciitilde18 bits} \\
+5 & $2.45 \times 10^{-8}$ & $2.46 \times 10^{-8}$ & \textasciitilde25 bits \\
+6 & $1.15 \times 10^{-10}$ & $1.15 \times 10^{-10}$ & \textasciitilde33 bits \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Fig.~\ref{fig:error} visualises the convergence of both the actual error and
+the theoretical bound over five Taylor terms on a logarithmic scale. The two
+curves are nearly indistinguishable, confirming that Taylor's Remainder Theorem
+provides a tight---not merely loose---upper bound on the approximation error.
+Each additional term reduces the error by roughly two orders of magnitude,
+consistent with the factorial denominator growth in the remainder term.
+By the fourth term the actual error reaches $3.57 \times 10^{-6}$, corresponding
+to 18-bit accuracy and comfortably exceeding the 16-bit requirement for audio
+signal processing. At the fifth term the error is effectively zero within the
+double-precision reference, demonstrating the rapid convergence of the series.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\columnwidth]{error_approximation.png}
+\caption{Approximation error (log scale) vs.\ number of Taylor terms. Actual
+error and theoretical bound from Taylor's Remainder Theorem converge closely,
+validating the analytical error model.}
+\label{fig:error}
 \end{figure}
 
-While necessary memory operations such as \texttt{sw} (store word) and \texttt{lw} (load word) are
-natively present to update the final array values, the disassembled code
-provides empirical proof that all redundant intermediate register spilling has
-been successfully eliminated. The \texttt{bload}, \texttt{bfly}, and
-\texttt{bget} sequence flawlessly executes the complex four-variable Butterfly
-computation without ever requiring the CPU to temporarily offload incomplete
-arithmetic states to the RAM. By effectively confining the intense mathematical
-cross-multiplications entirely within the coprocessor's hardware state, the
-system successfully bypasses the bottleneck and is fully optimized
-for the cycle-accurate performance evaluation detailed in the subsequent
-section.
+\subsection{Experiment 2: Impact on FFT-64 Output Quality}
 
-\subsection{Functional Correctness Verification}
+The Taylor approximation was applied to compute twiddle factors in a complete
+64-point FFT pipeline, and the output was compared against the NumPy reference
+implementation. Table~\ref{tab:exp2} reports the SNR achieved for varying
+numbers of Taylor terms, and Fig.~\ref{fig:snr} illustrates the corresponding
+SNR values.
 
-The hardware-accelerated FFT output was verified against a double-precision
-floating-point reference implemented in Python using NumPy's \texttt{fft} and
-\texttt{ifft} functions on identical input data. The Python reference applied
-the same 3-band equalizer gain pattern ($2.0\times$, $0.5\times$, $0.25\times$
-in Q10) to ensure direct comparison.
-
-Each 32-bit Q21.10 fixed-point output sample from the hardware simulation was
-converted to floating-point by dividing by $2^{10} = 1024$ prior to comparison.
-Error metrics over the 1024-sample output sequence are presented in
-Table~\ref{tab:correctness}.
-
-\begin{table}[h!]
-\caption{Correctness Verification Metrics}
-\label{tab:correctness}
+\begin{table}[H]
+\caption{FFT-64 Output SNR vs. Number of Taylor Terms}
+\label{tab:exp2}
 \centering
-\begin{tabular}{@{}lr@{}}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{c|c|c|c}
 \toprule
-\textbf{Metric} & \textbf{Value} \\
+\textbf{Terms} & \textbf{Max Error} & \textbf{Mean Error} & \textbf{SNR (dB)} \\
 \midrule
-Samples compared                 & 1024 \\
-Maximum absolute error           & 4.94 \\
-Mean absolute error              & 0.92 \\
-RMS error                        & 1.30 \\
-Mean relative error              & 0.28\% \\
-SNR (hardware vs.\ reference)    & 56.28 dB \\
+2 & $3.60 \times 10^{-1}$ & $6.12 \times 10^{-2}$ & 36.78 \\
+3 & $6.41 \times 10^{-3}$ & $1.17 \times 10^{-3}$ & 71.27 \\
+4 & $\mathbf{6.54 \times 10^{-5}}$ & $\mathbf{1.24 \times 10^{-5}}$ &
+$\mathbf{110.78}$ \\
+5 & $4.30 \times 10^{-7}$ & $8.36 \times 10^{-8}$ & 154.23 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The error metrics in Table~\ref{tab:correctness} confirm that the fixed-point
-hardware implementation produces results consistent with the double-precision
-floating-point reference. The 56.28~dB signal-to-noise ratio indicates that the
-signal energy exceeds the error energy by more than a factor of $4 \times
-10^{5}$, and the mean relative error of 0.28\% shows that, on average, each
-output sample deviates from the reference by well under one percent. This
-residual error does not originate from any computational fault but from the
-deliberate use of fixed-point arithmetic. The reference, by contrast, uses
-64-bit double-precision arithmetic with effectively no rounding. A small,
-bounded deviation between the two is therefore expected.
-
-An SNR of 56.28~dB thus represents a high-fidelity match to the reference,
-sufficient for the gain-adjustment task of an audio equalizer, so the error is
-acceptable and the custom-instruction FFT can be considered functionally correct
-relative to the floating-point reference.
-
-\subsection{Performance Comparison}
-
-The complete audio equalizer SoC was synthesized in two configurations to
-quantify the hardware cost of the proposed extension. Both were synthesized for
-the Xilinx Zynq-7020 device in Vivado 2025.1 under an identical 20 ns (50 MHz)
-clock constraint, and the two builds are identical in every respect except for
-the custom instruction module. The difference between the two configurations
-therefore isolates the cost of the proposed instructions.
-Table~\ref{tab:resource} reports the comparison across computational
-performance, occupied slices, total on-chip power, and maximum operating
-frequency.
-
-\begin{table}[h!]
+\begin{figure}[H]
 \centering
-\caption{Resource and performance comparison}
-\label{tab:resource}
-\begin{tabular}{@{}lccc@{}}
+\includegraphics[width=\columnwidth]{snr_fft64.png}
+\caption{SNR of FFT-64 output (dB) vs.\ number of Taylor terms. Each
+additional term yields approximately 40~dB of SNR improvement.}
+\label{fig:snr}
+\end{figure}
+
+As shown in Fig.~\ref{fig:snr}, the SNR increases steeply and uniformly with
+each additional Taylor term, rising from 36.78~dB at two terms to 154.23~dB
+at five terms---an improvement of approximately 40~dB per term. This behaviour
+reflects the exponential accuracy gain achieved at a linear increase in
+computational cost.
+
+To contextualise these results, Table~\ref{tab:audio_quality} lists the SNR
+thresholds for standard audio quality levels.
+
+\begin{table}[H]
+\caption{Audio Quality SNR Benchmarks}
+\label{tab:audio_quality}
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l|c}
 \toprule
-Metric & Baseline & With custom inst. & Change \\
+\textbf{Quality Level} & \textbf{SNR (dB)} \\
 \midrule
-FFT computation (M cycles) & 17.08  & 5.84  & 65.8\% \\
-Chip area (slices)         & 11678  & 11979 & 2.60\% \\
-Total on-chip power (mW)   & 132    & 136   & 3.03\% \\
-$f_{\max}$ (MHz)           & 56.9   & 55.8  & -1.93\% \\
+Telephone voice & 30 \\
+Voice quality   & 60 \\
+CD audio        & 90 \\
+Hi-res audio    & 120 \\
+Studio reference & 140+ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The results show that the 65.8\% or 2.92× acceleration of the FFT computation is
-obtained at a small hardware cost. The number of occupied slices increases by
-only 2.60\%, from 11,678 to 11,979. The hardware cost in power and frequency is
-similarly limited. Total on-chip power rises by 3.03\%, from 132 mW to 136 mW.
-This increase is attributable entirely to the additional dynamic switching
-activity of the custom instruction module. The maximum operating frequency
-decreases by 1.93\%, from 56.9 MHz to 55.8 MHz, reflecting the slightly longer
-critical path of the wide butterfly multipliers. 
+The two-term approximation (36.78~dB) already surpasses telephone-quality
+audio, while the three-term approximation (71.27~dB) clears the voice-quality
+threshold. The four-term configuration achieves 110.78~dB---comfortably
+exceeding the CD audio standard of 90~dB and approaching the hi-res audio
+threshold of 120~dB---making it the optimal operating point for embedded audio
+equalizer applications where computational cost must be minimised. Five terms
+(154.23~dB) meets studio-reference quality but at a proportionally higher cost.
 
-Both configurations nonetheless meet all timing constraints at the target
-frequency. Taken together, these results indicate that the proposed custom
-instructions reduce FFT computation time by 65.8\% while increasing area by only
-2.60\% and total power by 3.03\%, demonstrating that profile-driven custom
-instruction design delivers a favorable performance-to-cost trade-off on a
-minimal RISC-V core.
+\subsection{Experiment 3: Memory Consumption Comparison}
 
+A primary motivation for replacing LUT with Taylor approximation is memory
+efficiency. The memory footprint of each approach was computed as follows:
+\begin{itemize}
+    \item LUT: Each FFT-$N$ requires $N/2$ entries (exploiting
+    symmetry), with each entry storing both $\cos$ and $\sin$ values in 32-bit
+    format: $\text{LUT}_{\text{bytes}} = (N/2) \cdot 4 \cdot 2$.
+    \item Taylor: Only the four polynomial coefficients are stored,
+    regardless of $N$: $\text{Taylor}_{\text{bytes}} = 4 \cdot 4 = 16$~bytes.
+\end{itemize}
+
+Table~\ref{tab:memory} summarises the comparison across four FFT sizes, and
+Fig.~\ref{fig:memory} provides a logarithmic-scale visualisation that makes
+the disparity between the two approaches immediately apparent.
+
+\begin{table}[H]
+\caption{Memory Consumption: LUT vs.\ Taylor}
+\label{tab:memory}
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{c|c|c|c}
+\toprule
+\textbf{FFT Size} & \textbf{LUT (bytes)} & \textbf{Taylor (bytes)} &
+\textbf{Savings} \\
+\midrule
+FFT-64   & 256    & 16 & 93.75\% \\
+FFT-256  & 1{,}024 & 16 & 98.44\% \\
+FFT-1024 & 4{,}096 & 16 & 99.61\% \\
+FFT-4096 & 16{,}384 & 16 & 99.90\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\columnwidth]{memory_comparison.png}
+\caption{Memory consumption (bytes, log scale) for twiddle factor storage:
+LUT (red) vs.\ Taylor coefficients only (green). The Taylor footprint remains
+constant at 16~bytes across all FFT sizes.}
+\label{fig:memory}
+\end{figure}
+
+Fig.~\ref{fig:memory} plots LUT memory on a logarithmic scale, growing from
+256~bytes at FFT-64 to 16{,}384~bytes at FFT-4096, while the Taylor footprint
+remains flat at 16~bytes throughout. The savings grow with $N$: 93.75\% at
+FFT-64, rising to 99.90\% at FFT-4096. For FFT-1024, the Taylor approach
+saves 4{,}080~bytes---a critical advantage on the PicoRV32 core, which
+provides only a few kilobytes of on-chip SRAM. The constant-memory property
+also implies that scaling the FFT size incurs zero additional memory cost for
+twiddle factor storage, a highly desirable property for scalable embedded
+designs.
+
+\subsection{Discussion}
+
+The three experiments collectively establish the following key findings.
+
+Tight analytical error bounds, Taylor's Remainder Theorem provides a
+reliable, analytically computable upper bound on the approximation error
+(Fig.~\ref{fig:error}). Because the bound is tight---actual errors consistently
+fall just below it---designers can determine the required number of terms before
+implementation without empirical tuning.
+
+Optimal term count for audio, The four-term Taylor approximation
+represents the ideal operating point for audio equalizer applications
+(Table~\ref{tab:exp2}, Fig.~\ref{fig:snr}). It achieves 110.78~dB SNR,
+exceeding the CD audio standard of 90~dB, while requiring only four
+multiply-accumulate operations per twiddle factor evaluation via Horner's
+method.
+
+Substantial and scalable memory savings, The constant 16-byte footprint
+of the Taylor method yields memory reductions of 93.75\%--99.90\% compared to
+LUT across the evaluated FFT sizes (Table~\ref{tab:memory}, Fig.~\ref{fig:memory}).
+These savings grow monotonically with FFT size, making the proposed method
+increasingly advantageous as application demands scale upward.
+
+These findings have direct implications for our previous work on custom RISC-V
+instructions for the PicoRV32 audio equalizer~\cite{qohar2026picorv32}. The
+LUT used in that implementation can be replaced with Taylor approximation,
+recovering several kilobytes of SRAM for other application data. Furthermore,
+the polynomial evaluation in Eq.~\eqref{eq:horner} is structurally well-suited
+for hardware acceleration as a custom instruction, since it consists exclusively
+of multiply-accumulate operations that map naturally to the PicoRV32 Custom
+Peripheral Interface (PCPI).
+
+
+%==============================================================
 \section{Conclusion}
+\label{sec:conclusion}
+%==============================================================
 
-This paper presented a profile-driven design and implementation of custom RISC-V
-instructions for accelerating Fast Fourier Transform computation in an audio
-equalizer application. Four custom instructions \texttt{mshift}, \texttt{bload},
-\texttt{bfly}, and \texttt{bget} collapse the four-input, two-output butterfly
-operation into a single hardware-accelerated sequence and minimize the
-multiplication operations, integrated through the standard PCPI interface
-without modifying the PicoRV32 core. Static instruction profiling identified the
-butterfly multiplication as the dominant bottleneck, motivating the choice of
-acceleration target. Experimental results from Icarus Verilog simulation show a
-2.92$\times$ cycle count reduction for processing 1024 audio samples through a
-64-point FFT-based equalizer, compared to the RV32I software-only baseline. The
-GNU binutils assembler was modified to recognize the custom mnemonics, enabling
-clean integration through inline assembly without compiler backend changes.
+This paper presented a numerical analysis approach to twiddle factor computation
+in butterfly FFT for audio equalizer applications. By replacing static Lookup
+Tables with on-the-fly Taylor Series approximation, range reduction, and
+Horner's method for polynomial evaluation, the proposed approach achieves
+several important benefits.
 
-Future work will address three extensions. First, hardware acceleration of the
-bit reversal stage to capture additional cycle savings. Second, FPGA synthesis
-to characterize area and power overhead. Third, evaluation with larger FFT sizes
-($N = 128, 256$) to assess scalability of the speedup.
+A four-term Taylor approximation provides 18-bit accuracy at $\theta' = \pi/4$,
+exceeding the requirements of 16-bit CD-quality audio. In end-to-end FFT-64
+experiments using a multi-tone test signal, the four-term configuration achieved
+an SNR of 110.78~dB compared to a NumPy double-precision reference, comfortably
+surpassing the 90~dB CD audio standard. Memory consumption for twiddle factors
+was reduced by 93.75\% to 99.90\% compared to LUT-based approaches, depending on
+FFT size. The actual approximation error was consistently lower than the bound
+predicted by Taylor's Remainder Theorem, validating the mathematical soundness
+of the method.
 
+These results establish Taylor Series approximation as a numerically rigorous,
+memory-efficient alternative to Lookup Tables for twiddle factor computation.
+The findings provide a foundation for future hardware implementation through
+custom RISC-V instructions, with three planned extensions: (1) Verilog
+implementation of a \texttt{tw\_compute} custom instruction on PicoRV32; (2)
+integration with the existing FFT acceleration
+framework~\cite{qohar2026picorv32}; and (3) end-to-end validation with real
+audio signals at larger FFT sizes ($N = 256, 1024$).
+
+%==============================================================
 \begin{thebibliography}{00}
+
 \bibitem{stefani2022}
-D. Stefani and L. Turchet, ``On the challenges of embedded real-time music information retrieval,'' in \emph{Proc. 25th Int. Conf. Digital Audio Effects (DAFx20in22)}, Vienna, Austria, 2022.
+D. Stefani and L. Turchet, ``On the challenges of embedded real-time music information retrieval,'' in \textit{Proc. 25th Int. Conf. Digital Audio Effects (DAFx20in22)}, Vienna, Austria, 2022.
+
 \bibitem{cooley1965}
-J. W. Cooley and J. W. Tukey, ``An algorithm for the machine calculation of complex Fourier series,'' \emph{Math. Comput.}, vol. 19, no. 90, pp. 297--301, 1965.
-\bibitem{oppenheim}
-A. V. Oppenheim and R. W. Schafer, \emph{Discrete-Time Signal Processing}, 3rd ed. Upper Saddle River, NJ, USA: Pearson, 2010.
-\bibitem{waterman2019}
-A. Waterman, K. Asanovic, and J. Hauser, \emph{The RISC-V Instruction Set Manual: Volume I: Unprivileged ISA}, Document Version 20191213, RISC-V Foundation, 2019.
+J. W. Cooley and J. W. Tukey, ``An algorithm for the machine calculation of complex Fourier series,'' \textit{Math. Comput.}, vol. 19, no. 90, pp. 297--301, 1965.
+
+\bibitem{oppenheim2010}
+A. V. Oppenheim and R. W. Schafer, \textit{Discrete-Time Signal Processing}, 3rd ed. Upper Saddle River, NJ, USA: Pearson, 2010.
+
+\bibitem{chapra2015}
+S. C. Chapra and R. P. Canale, \textit{Numerical Methods for Engineers}, 7th ed. New York, NY, USA: McGraw-Hill, 2015.
+
+\bibitem{burden2011}
+R. L. Burden and J. D. Faires, \textit{Numerical Analysis}, 9th ed. Boston, MA, USA: Brooks/Cole, 2011.
+
+\bibitem{qohar2026picorv32}
+A. Qohar, A. Bejo, and E. Firmansyah, ``Design of custom instructions on PicoRV32 processor for accelerating Fast Fourier Transform algorithm,'' in \textit{Proc. IEEE Int. Conf.}, 2026.
+
 \bibitem{cao2025}
-P. Cao, H. Wang, H. Cao, Z. Wu, and Y. Liu, ``A flexible dual-mode and efficient RISC-V coprocessor for on-node FFT acceleration in edge sensing,'' \emph{IEEE Embedded Syst. Lett.}, 2025, doi: 10.1109/LES.2025.3634524.
+P. Cao, H. Wang, H. Cao, Z. Wu, and Y. Liu, ``A flexible dual-mode and efficient RISC-V coprocessor for on-node FFT acceleration in edge sensing,'' \textit{IEEE Embedded Syst. Lett.}, 2025, doi: 10.1109/LES.2025.3634524.
+
 \bibitem{hu2021}
-B. Hu, Y. Chen, and X. Zeng, ``An agile instruction set extension method based on the RISC-V processor,'' in \emph{Proc. 2021 IEEE 4th Int. Conf. on Electronics Technology (ICET)}, 2021, pp. 1--5, doi: 10.1109/ICET51757.2021.9450911.
+B. Hu, Y. Chen, and X. Zeng, ``An agile instruction set extension method based on the RISC-V processor,'' in \textit{Proc. 2021 IEEE 4th Int. Conf. Electronics Technology (ICET)}, 2021, pp. 1--5, doi: 10.1109/ICET51757.2021.9450911.
+
 \bibitem{yuan2022}
-J. Yuan, Q. Zhao, W. Wang, X. Meng, J. Li, and Q. Li, ``Audio denoising coprocessor based on RISC-V custom instruction set extension,'' \emph{WSEAS Trans. Commun.}, vol. 21, pp. 189--195, Jun. 2022, doi: 10.37394/23204.2022.21.23.
+J. Yuan, Q. Zhao, W. Wang, X. Meng, J. Li, and Q. Li, ``Audio denoising coprocessor based on RISC-V custom instruction set extension,'' \textit{WSEAS Trans. Commun.}, vol. 21, pp. 189--195, Jun. 2022.
+
 \bibitem{belhadj2022}
-H. Belhadj Amor, C. Bernier, and Z. P\v{r}ikryl, ``A RISC-V ISA extension for ultra-low power IoT wireless signal processing,'' \emph{IEEE Trans. Comput.}, vol. 71, no. 4, pp. 766--778, Apr. 2022, doi: 10.1109/TC.2021.3063027.
-\bibitem{picorv32}
+H. Belhadj Amor, C. Bernier, and Z. P\v{r}ikryl, ``A RISC-V ISA extension for ultra-low power IoT wireless signal processing,'' \textit{IEEE Trans. Comput.}, vol. 71, no. 4, pp. 766--778, Apr. 2022.
+
+\bibitem{wolf}
 C. Wolf, ``PicoRV32---A size-optimized RISC-V CPU,'' GitHub repository. [Online]. Available: \url{https://github.com/YosysHQ/picorv32}
-\bibitem{cui2023}
-E. Cui, T. Li, and Q. Wei, ``RISC-V instruction set architecture extensions: A survey,'' \emph{IEEE Access}, vol. 11, pp. 24696--24711, Mar. 2023, doi: 10.1109/ACCESS.2023.3246491.
-\bibitem{wang2024}
-S. Wang, X. Wang, Z. Xu, B. Chen, C. Feng, Q. Wang, and T. T. Ye, ``Optimizing CNN computation using RISC-V custom instruction sets for edge platforms,'' \emph{IEEE Trans. Comput.}, vol. 73, no. 5, pp. 1371--1384, May 2024, doi: 10.1109/TC.2024.3362060.
-\bibitem{garofalo2021}
-A. Garofalo, G. Tagliavini, F. Conti, L. Benini, and D. Rossi, ``XpulpNN: Enabling energy efficient and flexible inference of quantized neural networks on RISC-V based IoT end nodes,'' \emph{IEEE Trans. Emerg. Topics Comput.}, vol. 9, no. 3, pp. 1489--1505, Jul.--Sep. 2021, doi: 10.1109/TETC.2021.3072337.
-\bibitem{mousavikia2022}
-S. K. Mousavikia, E. Gholizadehazari, M. Mousazadeh, and S. B. Ors Yalcin, ``Instruction set extension of a RiscV based SoC for driver drowsiness detection,'' \emph{IEEE Access}, vol. 10, pp. 58151--58162, May 2022, doi: 10.1109/ACCESS.2022.3177743.
+
 \bibitem{chen2024}
-Y. Chen, X. Wang, S. Song, L. Feng, and Z. Wang, ``RISC-V custom instructions of elementary functions for IoT endpoint devices,'' \emph{IEEE Trans. Comput.}, vol. 73, no. 2, pp. 523--535, Feb. 2024, doi: 10.1109/TC.2023.3336174.
-\bibitem{cmlabfft}
-Communication \& Multimedia LAB, NTU, ``Fast Fourier Transform (FFT).'' [Online]. Available: \url{https://www.cmlab.csie.ntu.edu.tw/cml/dsp/training/coding/transform/fft.html} [Accessed: May 16, 2026].
-\bibitem{riscvprofiler}
-V. Mahendra, ``riscv-application-profiler,'' GitHub repository, 2023. [Online]. Available: \url{https://github.com/mahendraVamshi/riscv-application-profiler} [Accessed: May 16, 2026].
+Y. Chen, X. Wang, S. Song, L. Feng, and Z. Wang, ``RISC-V custom instructions of elementary functions for IoT endpoint devices,'' \textit{IEEE Trans. Comput.}, vol. 73, no. 2, pp. 523--535, Feb. 2024.
+
+\bibitem{muller2016}
+J.-M. Muller, \textit{Elementary Functions: Algorithms and Implementation}, 3rd ed. Boston, MA, USA: Birkh\"auser, 2016.
 
 \end{thebibliography}
+
 \end{document}

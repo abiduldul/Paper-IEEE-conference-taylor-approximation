@@ -1,10 +1,10 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.5.9)  6 JUN 2026 10:33
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.5.9)  6 JUN 2026 21:08
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
  %&-line parsing enabled.
-**/home/abid/Github/Paper-IEEE-conference-FFT-custom-instructions/IEEE-conference-template-062824.tex
-(/home/abid/Github/Paper-IEEE-conference-FFT-custom-instructions/IEEE-conference-template-062824.tex
+**/home/abid/Github/Paper-IEEE-conference-taylor-approximation/IEEE-conference-template-062824.tex
+(/home/abid/Github/Paper-IEEE-conference-taylor-approximation/IEEE-conference-template-062824.tex
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-01-22>
 (./IEEEtran.cls
@@ -340,78 +340,67 @@ File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 LaTeX Font Info:    Trying to load font information for U+msb on input line 79.
  (/usr/share/texlive/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
-)
-LaTeX Font Info:    Trying to load font information for TS1+ptm on input line 101.
- (/usr/share/texlive/texmf-dist/tex/latex/psnfss/ts1ptm.fd
-File: ts1ptm.fd 2001/06/04 font definitions for TS1/ptm.
-)
-
-LaTeX Warning: Citation `sundararajana2016' on page 1 undefined on input line 144.
-
-[1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}{/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc}
+) [1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}{/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc}
 
 
 ]
-Underfull \hbox (badness 1521) in paragraph at lines 172--180
-\OML/cmm/m/it/10 O\OT1/cmr/m/n/10 (\OML/cmm/m/it/10 N [][] N\OT1/cmr/m/n/10 )$ \OT1/ptm/m/n/10 by re-cur-sively de-com-pos-ing the DFT into
+Underfull \hbox (badness 10000) in paragraph at lines 220--220
+[]|\OT1/ptm/m/n/8 Lookup Ta-ble
  []
 
-<fft butterfly.png, id=13, 766.865pt x 604.2575pt>
-File: fft butterfly.png Graphic file (type png)
-<use fft butterfly.png>
-Package pdftex.def Info: fft butterfly.png  used on input line 183.
-(pdftex.def)             Requested size: 204.11938pt x 160.83743pt.
-LaTeX Font Info:    Trying to load font information for OT1+pcr on input line 225.
-(/usr/share/texlive/texmf-dist/tex/latex/psnfss/ot1pcr.fd
-File: ot1pcr.fd 2001/06/04 font definitions for OT1/pcr.
-) (/usr/share/texlive/texmf-dist/tex/latex/listings/lstlang1.sty
-File: lstlang1.sty 2023/02/27 1.9 listings language file
-) (/usr/share/texlive/texmf-dist/tex/latex/listings/lstmisc.sty
-File: lstmisc.sty 2023/02/27 1.9 (Carsten Heinz)
-)
-LaTeX Font Info:    Font shape `OT1/pcr/m/it' in size <8> not available
-(Font)              Font shape `OT1/pcr/m/sl' tried instead on input line 255.
- [2 <./fft butterfly.png>]
+
+Underfull \hbox (badness 10000) in paragraph at lines 221--222
+[]|\OT1/ptm/m/n/8 Memory-intensive;
+ []
+
+
+Underfull \hbox (badness 3375) in paragraph at lines 221--222
+\OT1/ptm/m/n/8 scales lin-early with
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 223--223
+\OT1/ptm/m/n/8 (~20 it-er-a-tions per
+ []
+
+
+Underfull \hbox (badness 2142) in paragraph at lines 223--225
+[]|\OT1/ptm/m/n/8 High la-tency; many
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 226--226
+[]|\OT1/ptm/m/n/8 Software
+ []
+
 
 LaTeX Warning: `!h' float specifier changed to `!ht'.
 
-[3]
-<Hardware architecture rtl.png, id=29, 627.34375pt x 417.56pt>
-File: Hardware architecture rtl.png Graphic file (type png)
-<use Hardware architecture rtl.png>
-Package pdftex.def Info: Hardware architecture rtl.png  used on input line 430.
-(pdftex.def)             Requested size: 226.79846pt x 150.95862pt.
 
-Underfull \hbox (badness 1742) in paragraph at lines 441--442
-[]\OT1/ptm/m/n/10 Output RAM: 4 KB block for cap-tur-ing the pro-
- []
+LaTeX Warning: `!h' float specifier changed to `!ht'.
 
-
-Underfull \hbox (badness 2865) in paragraph at lines 491--500
-[]\OT1/ptm/m/n/10 The PCPI out-put sig-nals \OT1/pcr/m/n/10 pcpi_rd\OT1/ptm/m/n/10 , \OT1/pcr/m/n/10 pcpi_wr\OT1/ptm/m/n/10 , and
- []
-
-[4 <./Hardware architecture rtl.png>]
-<custom instructions.png, id=35, 455.7025pt x 202.7575pt>
-File: custom instructions.png Graphic file (type png)
-<use custom instructions.png>
-Package pdftex.def Info: custom instructions.png  used on input line 551.
-(pdftex.def)             Requested size: 226.79846pt x 100.91133pt.
- [5 <./custom instructions.png>]
-Underfull \hbox (badness 2213) in paragraph at lines 696--697
-\OT1/ptm/m/it/8 Trans. Com-put.\OT1/ptm/m/n/8 , vol. 71, no. 4, pp. 766--778, Apr. 2022, doi:
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 712--713
-[]\OT1/ptm/m/n/8 V. Ma-hen-dra, ``riscv-application-profiler,'' GitHub repos-i-tory,
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 712--713
-\OT1/ptm/m/n/8 2023. [On-line]. Avail-able: $https : / / github . com / mahendraVamshi /
- []
-
+[2]
+LaTeX Font Info:    Trying to load font information for OT1+pcr on input line 382.
+ (/usr/share/texlive/texmf-dist/tex/latex/psnfss/ot1pcr.fd
+File: ot1pcr.fd 2001/06/04 font definitions for OT1/pcr.
+) [3]
+<error_approximation.png, id=29, 988.69376pt x 579.16376pt>
+File: error_approximation.png Graphic file (type png)
+<use error_approximation.png>
+Package pdftex.def Info: error_approximation.png  used on input line 467.
+(pdftex.def)             Requested size: 226.79846pt x 132.85136pt.
+<snr_fft64.png, id=31, 991.705pt x 562.1pt>
+File: snr_fft64.png Graphic file (type png)
+<use snr_fft64.png>
+Package pdftex.def Info: snr_fft64.png  used on input line 502.
+(pdftex.def)             Requested size: 252.0pt x 142.83185pt.
+ [4 <./error_approximation.png> <./snr_fft64.png>]
+<memory_comparison.png, id=39, 1032.85875pt x 549.05125pt>
+File: memory_comparison.png Graphic file (type png)
+<use memory_comparison.png>
+Package pdftex.def Info: memory_comparison.png  used on input line 579.
+(pdftex.def)             Requested size: 252.0pt x 133.95323pt.
+ [5 <./memory_comparison.png>]
 
 ** Conference Paper **
 Before submitting the final camera ready copy, remember to:
@@ -423,29 +412,27 @@ Before submitting the final camera ready copy, remember to:
  uses only Type 1 fonts and that every step in the generation
  process uses the appropriate paper size.
 
-[6] (./IEEE-conference-template-062824.aux)
+[6
+
+] (./IEEE-conference-template-062824.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-01-22>
  ***********
-
-
-LaTeX Warning: There were undefined references.
-
  ) 
 Here is how much of TeX's memory you used:
- 6418 strings out of 476106
- 96118 string characters out of 5793934
- 2073975 words of memory out of 5000000
- 28346 multiletter control sequences out of 15000+600000
- 605594 words of font info for 134 fonts, out of 8000000 for 9000
+ 5966 strings out of 476106
+ 91546 string characters out of 5793934
+ 1954975 words of memory out of 5000000
+ 27905 multiletter control sequences out of 15000+600000
+ 603763 words of font info for 130 fonts, out of 8000000 for 9000
  59 hyphenation exceptions out of 8191
- 57i,11n,65p,572b,1311s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/courier/ucrb8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/courier/ucrro8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmbi8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on IEEE-conference-template-062824.pdf (6 pages, 278245 bytes).
+ 57i,12n,65p,409b,336s stack positions out of 10000i,1000n,20000p,200000b,200000s
+</usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx6.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmbi8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
+Output written on IEEE-conference-template-062824.pdf (6 pages, 607899 bytes).
 PDF statistics:
- 116 PDF objects out of 1000 (max. 8388607)
- 67 compressed objects within 1 object stream
+ 126 PDF objects out of 1000 (max. 8388607)
+ 73 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  16 words of extra memory for PDF output out of 10000 (max. 10000000)
 
